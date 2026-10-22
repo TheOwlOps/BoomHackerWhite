@@ -6,7 +6,7 @@
 
 <div align="center">
 
-# Strix
+# BoomHackerWhite
 
 ### Open-source AI hackers to find and fix your app’s vulnerabilities.
 
@@ -38,9 +38,9 @@
 ---
 
 
-## Strix Overview
+## Overview
 
-Strix are autonomous AI agents that act just like real hackers - they run your code dynamically, find vulnerabilities, and validate them through actual proof-of-concepts. Built for developers and security teams who need fast, accurate security testing without the overhead of manual pentesting or the false positives of static analysis tools.
+BoomHackerWhite is a hardened, extended fork of [Strix](https://github.com/usestrix/strix) (Apache-2.0). Its agents are autonomous AI agents that act just like real hackers - they run your code dynamically, find vulnerabilities, and validate them through actual proof-of-concepts. Built for developers and security teams who need fast, accurate security testing without the overhead of manual pentesting or the false positives of static analysis tools.
 
 **Key Capabilities:**
 
@@ -92,6 +92,19 @@ strix --target ./app-directory
 > First run automatically pulls the sandbox Docker image. Results are saved to `strix_runs/<run-name>`
 
 ---
+
+## What's new in BoomHackerWhite
+
+Beyond upstream Strix (snapshot `v0.8.3`), this fork adds:
+
+- **Hard scope enforcement in the execution path** — authorized targets are no longer just prompt text. The tool executor refuses network-action tool calls (browser, proxy, Python, terminal, reporting) whose URLs leave the user-authorized scan scope. See `strix/scope.py`; disable only via `BHW_DISABLE_SCOPE_ENFORCEMENT=true`.
+- **Batched tool calls** — agents may issue several independent tool calls in one response; the parser, streaming layer and executor now handle all of them instead of truncating to the first, cutting whole LLM round-trips from multi-step work.
+- **Deterministic finding deduplication** — exact re-reports are rejected by a stable fingerprint (location + method + CWE + title) before the LLM dedupe judge is consulted: faster, cheaper, and reproducible.
+- **SARIF + scan summary exports** — every run now also writes `findings.sarif.json` (GitHub code scanning / CI ingestion) and `scan-summary.json` next to the Markdown/CSV reports.
+- **Crash-safe agent graph** — the delegation graph is snapshotted atomically to `agents_graph.json` in the run directory on every agent creation and completion, instead of living only in process memory.
+- **Scan budget guard** — set `BHW_MAX_SCAN_COST_USD` (or `max_cost_usd` in the scan config): agents are warned at 80% spend and the scan terminates instead of burning money past the limit.
+- **Faster long scans** — token counting in the memory compressor is cached, so per-iteration history compression no longer re-tokenizes the whole conversation.
+- **New CLI aliases** — `boom-hacker-white` and `bhw` alongside the original `strix` command. All `STRIX_*` environment variables keep working.
 
 ## ☁️ Strix Platform
 

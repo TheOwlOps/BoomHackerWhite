@@ -1,4 +1,5 @@
 import logging
+from functools import lru_cache
 from typing import Any
 
 import litellm
@@ -44,6 +45,15 @@ keeping the summary concise and to the point."""
 
 
 def _count_tokens(text: str, model: str) -> int:
+    # Token counts are recomputed for the whole history on every agent
+    # iteration, and history messages are immutable once appended — so
+    # caching by (model, text) turns an O(history) tokenizer bill per
+    # iteration into O(new messages). Bounded to keep memory in check.
+    return _count_tokens_cached(text, model)
+
+
+@lru_cache(maxsize=8192)
+def _count_tokens_cached(text: str, model: str) -> int:
     try:
         count = litellm.token_counter(model=model, text=text)
         return int(count)

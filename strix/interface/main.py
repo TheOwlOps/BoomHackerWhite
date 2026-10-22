@@ -169,7 +169,7 @@ def validate_environment() -> None:  # noqa: PLR0912, PLR0915
 
         panel = Panel(
             error_text,
-            title="[bold white]STRIX",
+            title="[bold white]BOOM HACKER WHITE",
             title_align="left",
             border_style="red",
             padding=(1, 2),
@@ -194,7 +194,7 @@ def check_docker_installed() -> None:
 
         panel = Panel(
             error_text,
-            title="[bold white]STRIX",
+            title="[bold white]BOOM HACKER WHITE",
             title_align="left",
             border_style="red",
             padding=(1, 2),
@@ -242,7 +242,7 @@ async def warm_up_llm() -> None:
 
         panel = Panel(
             error_text,
-            title="[bold white]STRIX",
+            title="[bold white]BOOM HACKER WHITE",
             title_align="left",
             border_style="red",
             padding=(1, 2),
@@ -255,12 +255,14 @@ async def warm_up_llm() -> None:
 
 
 def get_version() -> str:
-    try:
-        from importlib.metadata import version
+    from importlib.metadata import PackageNotFoundError, version
 
-        return version("strix-agent")
-    except Exception:  # noqa: BLE001
-        return "unknown"
+    for package in ("boom-hacker-white", "strix-agent"):
+        try:
+            return version(package)
+        except PackageNotFoundError:
+            continue
+    return "unknown"
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -470,7 +472,7 @@ def display_completion_message(args: argparse.Namespace, results_path: Path) -> 
 
     panel = Panel(
         panel_content,
-        title="[bold white]STRIX",
+        title="[bold white]BOOM HACKER WHITE",
         title_align="left",
         border_style=border_style,
         padding=(1, 2),
@@ -513,7 +515,7 @@ def pull_docker_image() -> None:
 
             panel = Panel(
                 error_text,
-                title="[bold white]STRIX",
+                title="[bold white]BOOM HACKER WHITE",
                 title_align="left",
                 border_style="red",
                 padding=(1, 2),
@@ -580,7 +582,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
 
         panel = Panel(
             error_text,
-            title="[bold white]STRIX",
+            title="[bold white]BOOM HACKER WHITE",
             title_align="left",
             border_style="red",
             padding=(1, 2),

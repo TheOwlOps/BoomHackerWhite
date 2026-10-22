@@ -1,7 +1,7 @@
 [project]
-name = "strix-agent"
-version = "0.8.3"
-description = "Open-source AI Hackers for your apps"
+name = "boom-hacker-white"
+version = "1.0.0"
+description = "BoomHackerWhite - open-source AI hackers to find and fix your app vulnerabilities"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
@@ -50,6 +50,8 @@ dependencies = [
 
 [project.scripts]
 strix = "strix.interface.main:main"
+boom-hacker-white = "strix.interface.main:main"
+bhw = "strix.interface.main:main"
 
 [project.optional-dependencies]
 vertex = ["google-cloud-aiplatform>=1.38"]

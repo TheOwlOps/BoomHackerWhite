@@ -36,6 +36,59 @@ _completed_agent_llm_totals: dict[str, int | float] = _empty_llm_stats_totals()
 
 _agent_states: dict[str, Any] = {}
 
+_graph_persist_lock = threading.Lock()
+
+
+def persist_agent_graph() -> None:
+    """Snapshot the agent graph to the run directory (best effort).
+
+    The graph used to live only in process memory: a crash or Ctrl-C lost
+    the entire delegation tree, statuses and results, even though notes
+    and findings were already persisted per run. The snapshot is written
+    atomically (tmp file + rename) to ``agents_graph.json`` in the run
+    directory so external tooling — and a human picking up the pieces —
+    can see exactly who was doing what when the process died.
+    """
+    try:
+        from strix.telemetry.tracer import get_global_tracer
+
+        tracer = get_global_tracer()
+        if tracer is None:
+            return
+        run_dir = tracer.get_run_dir()
+        snapshot = {
+            "nodes": {
+                agent_id: {k: v for k, v in node.items() if k != "state"}
+                for agent_id, node in _agent_graph["nodes"].items()
+            },
+            "edges": list(_agent_graph["edges"]),
+            "root_agent_id": _root_agent_id,
+        }
+        import json
+
+        with _graph_persist_lock:
+            tmp_path = run_dir / "agents_graph.json.tmp"
+            tmp_path.write_text(json.dumps(snapshot, indent=2, default=str), encoding="utf-8")
+            tmp_path.replace(run_dir / "agents_graph.json")
+    except (OSError, ValueError, TypeError):
+        # Persistence must never take down a running scan.
+        return
+
+
+def load_agent_graph_snapshot(run_dir: Any) -> dict[str, Any] | None:
+    """Load a persisted graph snapshot from a run directory, if present."""
+    import json
+    from pathlib import Path
+
+    path = Path(run_dir) / "agents_graph.json"
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
 
 def _snapshot_agent_llm_stats(agent: Any) -> dict[str, int | float] | None:
     if not hasattr(agent, "llm") or not hasattr(agent.llm, "_total_stats"):
@@ -284,6 +337,7 @@ def _run_agent_in_thread(
         _agent_graph["nodes"][state.agent_id]["result"] = {"error": str(e)}
         _running_agents.pop(state.agent_id, None)
         _finalize_agent_llm_stats(state.agent_id, agent)
+        persist_agent_graph()
         raise
     else:
         if state.stop_requested:
@@ -294,6 +348,7 @@ def _run_agent_in_thread(
         _agent_graph["nodes"][state.agent_id]["result"] = result
         _running_agents.pop(state.agent_id, None)
         _finalize_agent_llm_stats(state.agent_id, agent)
+        persist_agent_graph()
 
         return {"result": result}
 

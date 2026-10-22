@@ -258,7 +258,11 @@ def create_vulnerability_report(  # noqa: PLR0912
 
         tracer = get_global_tracer()
         if tracer:
-            from strix.llm.dedupe import check_duplicate
+            from strix.llm.dedupe import (
+                check_duplicate,
+                deterministic_fingerprint,
+                find_deterministic_duplicate,
+            )
 
             existing_reports = tracer.get_existing_vulnerabilities()
 
@@ -272,7 +276,24 @@ def create_vulnerability_report(  # noqa: PLR0912
                 "poc_script_code": poc_script_code,
                 "endpoint": endpoint,
                 "method": method,
+                "cwe": cwe,
             }
+
+            # Fast path: exact re-reports are rejected deterministically,
+            # without spending an LLM call on the dedupe judge.
+            exact = find_deterministic_duplicate(candidate, existing_reports)
+            if exact is not None:
+                return {
+                    "success": False,
+                    "message": (
+                        f"Duplicate of '{exact.get('title', 'Unknown')}' "
+                        f"(id={exact.get('id', '')}). Do not re-report the same vulnerability."
+                    ),
+                    "duplicate_of": exact.get("id", ""),
+                    "duplicate_title": exact.get("title", ""),
+                    "confidence": 1.0,
+                    "reason": "Deterministic fingerprint match (same location, method, CWE, title)",
+                }
 
             dedupe_result = check_duplicate(candidate, existing_reports)
 
@@ -314,6 +335,7 @@ def create_vulnerability_report(  # noqa: PLR0912
                 cve=cve,
                 cwe=cwe,
                 code_locations=parsed_locations,
+                fingerprint=deterministic_fingerprint(candidate),
             )
 
             return {

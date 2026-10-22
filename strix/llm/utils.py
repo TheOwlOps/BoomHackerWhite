@@ -108,16 +108,28 @@ def parse_tool_invocations(content: str) -> list[dict[str, Any]] | None:
 
 
 def fix_incomplete_tool_call(content: str) -> str:
-    """Fix incomplete tool calls by adding missing closing tag.
+    """Fix incomplete tool calls by adding missing closing tags.
 
-    Handles both ``<function=…>`` and ``<invoke name="…">`` formats.
+    Handles both ``<function=…>`` and ``<invoke name="…">`` formats, and any
+    number of batched calls: when the stream was cut off inside the last of
+    several calls, the missing closers are appended so that every complete
+    call before it still parses.
     """
-    has_open = "<function=" in content or "<invoke " in content
     count_open = content.count("<function=") + content.count("<invoke ")
-    has_close = "</function>" in content or "</invoke>" in content
-    if has_open and count_open == 1 and not has_close:
+    count_close = content.count("</function>") + content.count("</invoke>")
+    param_open = content.count("<parameter=")
+    param_close = content.count("</parameter>")
+    if count_open > count_close or param_open > param_close:
         content = content.rstrip()
-        content = content + "function>" if content.endswith("</") else content + "\n</function>"
+        if content.endswith("</"):
+            content += "function>"
+            count_close += 1
+        elif param_open > param_close:
+            # Stream died inside the last parameter value: close it so the
+            # partial argument is captured instead of silently dropped.
+            content += "\n</parameter>"
+        for _ in range(count_open - count_close):
+            content += "\n</function>"
     return content
 
 

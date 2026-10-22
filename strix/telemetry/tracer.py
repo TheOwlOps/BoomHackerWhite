@@ -323,6 +323,7 @@ class Tracer:
         cve: str | None = None,
         cwe: str | None = None,
         code_locations: list[dict[str, Any]] | None = None,
+        fingerprint: str | None = None,
     ) -> str:
         report_id = f"vuln-{len(self.vulnerability_reports) + 1:04d}"
 
@@ -361,6 +362,8 @@ class Tracer:
             report["cwe"] = cwe.strip()
         if code_locations:
             report["code_locations"] = code_locations
+        if fingerprint:
+            report["fingerprint"] = fingerprint
 
         self.vulnerability_reports.append(report)
         logger.info(f"Added vulnerability report: {report_id} - {title}")
@@ -756,6 +759,33 @@ class Tracer:
                         vuln_dir,
                     )
                 logger.info("Updated vulnerability index: %s", vuln_csv_file)
+
+                # Machine-readable exports: SARIF for code-scanning/CI
+                # ingestion and a compact summary for gates and dashboards.
+                try:
+                    from strix.sarif import build_sarif, build_scan_summary
+
+                    sarif_file = run_dir / "findings.sarif.json"
+                    with sarif_file.open("w", encoding="utf-8") as f:
+                        f.write(json.dumps(build_sarif(self.vulnerability_reports), indent=2))
+
+                    stats = self.get_total_llm_stats()
+                    total_cost = stats.get("cost") if isinstance(stats, dict) else None
+                    summary_file = run_dir / "scan-summary.json"
+                    with summary_file.open("w", encoding="utf-8") as f:
+                        f.write(
+                            json.dumps(
+                                build_scan_summary(
+                                    self.vulnerability_reports,
+                                    duration_seconds=self._calculate_duration(),
+                                    total_cost=total_cost,
+                                ),
+                                indent=2,
+                            )
+                        )
+                    logger.info("Saved SARIF + summary exports to: %s", run_dir)
+                except (OSError, ValueError, TypeError) as e:
+                    logger.warning("Failed to write SARIF/summary exports: %s", e)
 
             logger.info("📊 Essential scan data saved to: %s", run_dir)
             if mark_complete and not self._run_completed_emitted:

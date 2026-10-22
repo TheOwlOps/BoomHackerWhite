@@ -175,6 +175,16 @@ async def execute_tool_with_validation(
     if arg_error:
         return f"Error: {arg_error}"
 
+    # Hard scope enforcement: network-action tools may only touch hosts the
+    # user authorized for this scan (see strix/scope.py). This runs in the
+    # executor — the single choke point every tool call passes through —
+    # so it holds no matter what the model was told or tricked into doing.
+    from strix.scope import check_tool_scope
+
+    scope_error = check_tool_scope(tool_name, kwargs)
+    if scope_error:
+        return f"Error: {scope_error}"
+
     try:
         result = await execute_tool(tool_name, agent_state, **kwargs)
     except Exception as e:  # noqa: BLE001

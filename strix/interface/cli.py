@@ -55,7 +55,7 @@ async def run_cli(args: Any) -> None:  # noqa: PLR0915
             results_text,
             note_text,
         ),
-        title="[bold white]STRIX",
+        title="[bold white]BOOM HACKER WHITE",
         title_align="left",
         border_style="#22c55e",
         padding=(1, 2),
@@ -137,7 +137,7 @@ async def run_cli(args: Any) -> None:  # noqa: PLR0915
 
         return Panel(
             status_text,
-            title="[bold white]STRIX",
+            title="[bold white]BOOM HACKER WHITE",
             title_align="left",
             border_style="#22c55e",
             padding=(1, 2),
@@ -195,7 +195,7 @@ async def run_cli(args: Any) -> None:  # noqa: PLR0915
                 "\n\n",
                 tracer.final_scan_result,
             ),
-            title="[bold white]STRIX",
+            title="[bold white]BOOM HACKER WHITE",
             title_align="left",
             border_style="#60a5fa",
             padding=(1, 2),

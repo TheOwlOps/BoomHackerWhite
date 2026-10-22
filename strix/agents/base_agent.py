@@ -149,6 +149,8 @@ class BaseAgent(metaclass=AgentMeta):
         if self.state.parent_id is None and agents_graph_actions._root_agent_id is None:
             agents_graph_actions._root_agent_id = self.state.agent_id
 
+        agents_graph_actions.persist_agent_graph()
+
     async def agent_loop(self, task: str) -> dict[str, Any]:  # noqa: PLR0912, PLR0915
         from strix.telemetry.tracer import get_global_tracer
 
@@ -170,6 +172,10 @@ class BaseAgent(metaclass=AgentMeta):
             if self.state.is_waiting_for_input():
                 await self._wait_for_input()
                 continue
+
+            budget_result = self._enforce_scan_budget(tracer)
+            if budget_result is not None:
+                return budget_result
 
             if self.state.should_stop():
                 if not self.interactive:
@@ -257,6 +263,71 @@ class BaseAgent(metaclass=AgentMeta):
                         raise
                     await self._enter_waiting_state(tracer, error_occurred=True)
                     continue
+
+    def _scan_budget_limit(self, tracer: Optional["Tracer"]) -> float | None:
+        """Scan-wide USD budget from env or scan config, if one is set."""
+        import os
+
+        raw: Any = os.getenv("BHW_MAX_SCAN_COST_USD")
+        if not raw and tracer is not None:
+            scan_config = getattr(tracer, "scan_config", None) or {}
+            raw = scan_config.get("max_cost_usd")
+        try:
+            limit = float(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            return None
+        return limit if limit and limit > 0 else None
+
+    def _enforce_scan_budget(self, tracer: Optional["Tracer"]) -> dict[str, Any] | None:
+        """Stop runaway scans at a hard, user-configured cost ceiling.
+
+        At 80% of the budget the agent is told once to wrap up. Past 100%
+        it gets a five-iteration grace period to file findings and finish;
+        at 125% (or after the grace period) the loop terminates instead of
+        silently burning money. No limit configured means no enforcement.
+        """
+        if tracer is None:
+            return None
+        limit = self._scan_budget_limit(tracer)
+        if limit is None:
+            return None
+        try:
+            cost = float(tracer.get_total_llm_stats().get("cost", 0) or 0)
+        except (AttributeError, TypeError, ValueError):
+            return None
+
+        if cost >= limit * 0.8 and not self.state.context.get("budget_warned"):
+            self.state.context["budget_warned"] = True
+            self.state.context["budget_warn_iteration"] = self.state.iteration
+            self.state.add_message(
+                "user",
+                f"BUDGET WARNING: This scan has spent ${cost:.2f} of its "
+                f"${limit:.2f} budget (BHW_MAX_SCAN_COST_USD). Prioritize "
+                "finishing: file any remaining findings and call the finish "
+                "tool as soon as your current task is complete.",
+            )
+
+        if cost < limit:
+            return None
+
+        warned_at = self.state.context.get("budget_warn_iteration")
+        grace_over = warned_at is not None and self.state.iteration >= int(warned_at) + 5
+        if not (grace_over or cost >= limit * 1.25):
+            return None
+
+        message = f"Scan budget exceeded: spent ${cost:.2f}, limit ${limit:.2f}."
+        self.state.add_error(message)
+        if not self.interactive:
+            self.state.set_completed({"success": False, "error": message})
+            tracer.update_agent_status(self.state.agent_id, "failed", message)
+            return self.state.final_result or {}
+        self.state.enter_waiting_state()
+        tracer.update_agent_status(self.state.agent_id, "stopped")
+        self.state.add_message(
+            "assistant",
+            f"{message} Execution paused. Raise BHW_MAX_SCAN_COST_USD to continue.",
+        )
+        return None
 
     async def _wait_for_input(self) -> None:
         if self._force_stop:

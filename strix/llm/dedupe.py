@@ -1,7 +1,9 @@
+import hashlib
 import json
 import logging
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 import litellm
 
@@ -137,6 +139,61 @@ def _parse_dedupe_response(content: str) -> dict[str, Any]:
         "confidence": confidence,
         "reason": reason[:500] if reason else "",
     }
+
+
+def _normalize_location(report: dict[str, Any]) -> str:
+    """Normalize a report's location to ``host/path`` for fingerprinting."""
+    raw = str(report.get("target") or "")
+    endpoint = str(report.get("endpoint") or "")
+    host = ""
+    path = ""
+    if raw:
+        parsed = urlparse(raw if "://" in raw else f"//{raw}")
+        host = (parsed.hostname or "").lower()
+        path = parsed.path or ""
+    if endpoint:
+        parsed_ep = urlparse(endpoint if "://" in endpoint else f"//x{endpoint}")
+        ep_path = parsed_ep.path if endpoint.startswith("/") else endpoint
+        if ep_path:
+            path = ep_path
+    return f"{host}{path}".rstrip("/").lower()
+
+
+def _normalize_title(title: Any) -> str:
+    text = re.sub(r"[^a-z0-9\s]", " ", str(title or "").lower())
+    return " ".join(sorted(set(text.split())))
+
+
+def deterministic_fingerprint(report: dict[str, Any]) -> str:
+    """Stable fingerprint for exact-duplicate detection.
+
+    Two reports with the same normalized location, HTTP method, CWE (when
+    known) and title-token set are the same finding reported twice, no LLM
+    judgement needed. Paraphrased duplicates still fall through to the LLM
+    judge in :func:`check_duplicate`.
+    """
+    parts = [
+        _normalize_location(report),
+        str(report.get("method") or "").upper(),
+        str(report.get("cwe") or "").upper(),
+        _normalize_title(report.get("title")),
+    ]
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()
+
+
+def find_deterministic_duplicate(
+    candidate: dict[str, Any], existing_reports: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """Return the existing report that exactly matches the candidate."""
+    candidate_fp = deterministic_fingerprint(candidate)
+    for report in existing_reports:
+        stored = report.get("fingerprint")
+        if stored:
+            if stored == candidate_fp:
+                return report
+        elif deterministic_fingerprint(report) == candidate_fp:
+            return report
+    return None
 
 
 def check_duplicate(
