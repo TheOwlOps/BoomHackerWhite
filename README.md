@@ -74,7 +74,39 @@ BoomHackerWhite is a hardened, extended fork of [Strix](https://github.com/usest
 - Docker (running)
 - An LLM API key from any [supported provider](https://docs.strix.ai/llm-providers/overview) (OpenAI, Anthropic, Google, etc.)
 
-### Installation & First Scan
+### Quick install (one line)
+
+Linux / macOS:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TheOwlOps/BoomHackerWhite/main/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/TheOwlOps/BoomHackerWhite/main/install.ps1 | iex
+```
+
+The installer sets everything up as an isolated tool (commands: `bhw`,
+`boom-hacker-white`, `strix`) and finishes by running the doctor:
+
+```bash
+bhw --doctor
+```
+
+The doctor checks every prerequisite — Python, Docker CLI and daemon,
+sandbox image, LLM model/API key, output directory — and prints the
+exact fix for anything missing, instead of the tool silently doing
+nothing on a broken setup. Then prove the install end to end against
+the bundled demo target (see [demo/README.md](demo/README.md)):
+
+```bash
+python3 demo/vulnerable_target.py &
+bhw -t http://127.0.0.1:8899 -n -m quick
+```
+
+## Installation & First Scan
 
 ```bash
 # Install Strix

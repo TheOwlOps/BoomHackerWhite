@@ -2,6 +2,29 @@
 
 All notable changes to BoomHackerWhite are documented here.
 
+## 1.1.0 — Install & first-run experience
+
+### Added
+
+- **One-line installers** — `install.sh` (Linux/macOS) and `install.ps1`
+  (Windows): install uv if needed, install BoomHackerWhite as an isolated
+  tool (`bhw`, `boom-hacker-white`, `strix` commands), then run the
+  doctor automatically.
+- **`bhw --doctor`** — preflight diagnostics for the classic
+  "installed it and nothing happens" failure: checks Python version,
+  Docker CLI, Docker daemon, sandbox image, LLM model/API key and the
+  output directory, prints the exact fix per failure, and exits non-zero
+  while anything blocking is missing. No target required.
+- **Bundled demo target** (`demo/vulnerable_target.py`) — a deliberately
+  vulnerable, standard-library-only web app (SQL injection, reflected
+  XSS, IDOR, command injection, path traversal) so a fresh install can
+  prove itself end to end in minutes; see `demo/README.md`.
+
+### Fixed
+
+- `--doctor` (and `--version`) no longer require `--target`; argument
+  parsing no longer crashes when no target is given in those modes.
+
 ## 1.0.0 — BoomHackerWhite (based on Strix 0.8.3)
 
 First release of the BoomHackerWhite fork of [Strix](https://github.com/usestrix/strix)

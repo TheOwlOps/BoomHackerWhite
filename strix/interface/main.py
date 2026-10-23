@@ -8,6 +8,8 @@ import asyncio
 import logging
 import shutil
 import sys
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +21,7 @@ from rich.text import Text
 
 from strix.config import Config, apply_saved_config, save_current_config
 from strix.config.config import resolve_llm_config
+from strix.doctor import run_doctor
 from strix.llm.utils import resolve_strix_model
 
 
@@ -255,11 +258,9 @@ async def warm_up_llm() -> None:
 
 
 def get_version() -> str:
-    from importlib.metadata import PackageNotFoundError, version
-
     for package in ("boom-hacker-white", "strix-agent"):
         try:
-            return version(package)
+            return _pkg_version(package)
         except PackageNotFoundError:
             continue
     return "unknown"
@@ -267,7 +268,7 @@ def get_version() -> str:
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Strix Multi-Agent Cybersecurity Penetration Testing Tool",
+        description="BoomHackerWhite Multi-Agent Cybersecurity Penetration Testing Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -304,14 +305,24 @@ Examples:
         "-v",
         "--version",
         action="version",
-        version=f"strix {get_version()}",
+        version=f"boom-hacker-white {get_version()}",
+    )
+
+    parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="Check prerequisites (Docker, LLM configuration, output "
+        "directory), print what is missing and how to fix it, then exit. "
+        "No target needed.",
     )
 
     parser.add_argument(
         "-t",
         "--target",
         type=str,
-        required=True,
+        required="--doctor" not in sys.argv
+        and "--version" not in sys.argv
+        and "-v" not in sys.argv,
         action="append",
         help="Target to test (URL, repository, local directory path, domain name, or IP address). "
         "Can be specified multiple times for multi-target scans.",
@@ -406,7 +417,7 @@ Examples:
             parser.error(f"Failed to read instruction file '{instruction_path}': {e}")
 
     args.targets_info = []
-    for target in args.target:
+    for target in args.target or []:
         try:
             target_type, target_dict = infer_target_type(target)
 
@@ -547,6 +558,9 @@ def main() -> None:  # noqa: PLR0912, PLR0915
 
     if args.config:
         apply_config_override(args.config)
+
+    if getattr(args, "doctor", False):
+        sys.exit(run_doctor())
 
     check_docker_installed()
     pull_docker_image()
